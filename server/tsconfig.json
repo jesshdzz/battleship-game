@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    /* Configuración Básica */
+    "target": "es2016",                                  /* A qué versión de JS vamos a compilar */
+    "module": "commonjs",                                /* Node.js usa CommonJS por defecto */
+    "moduleResolution": "node",                          /* Cómo buscar archivos */
+    "outDir": "./dist",                                  /* Dónde guardar los archivos compilados */
+    "esModuleInterop": true,                             /* ¡CLAVE! Permite usar 'import' con librerías viejas */
+    "forceConsistentCasingInFileNames": true,            /* Evita errores de mayúsculas/minúsculas */
+    "strict": true,                                      /* Habilita el modo estricto para mejor código */
+    "skipLibCheck": true                                 /* Salta chequeo de tipos en librerías externas (ahorra tiempo) */
+  },
+  "include": ["src/**/*"]                                /* Qué archivos compilar */
+}
