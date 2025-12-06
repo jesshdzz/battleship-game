@@ -1,136 +1,221 @@
 import { useState } from 'react';
+import { DndContext, type DragEndEvent, useDraggable, useDroppable } from '@dnd-kit/core';
 import { GameBoard } from './GameBoard';
-import {  type CellState, type Ship, type Coordinate } from '../types';
+import {  type Ship, type CellState, type ShipType, type Coordinate } from '../types';
+import { ShipIcon } from './ShipIcons';
 
-// Definición local de los barcos disponibles para colocar
-const AVAILABLE_SHIPS = [
-  { name: 'Portaaviones', size: 5, id: 'carrier' },
-  { name: 'Acorazado', size: 4, id: 'battleship' },
-  { name: 'Crucero', size: 3, id: 'cruiser' },
-  { name: 'Submarino', size: 3, id: 'submarine' },
-  { name: 'Destructor', size: 2, id: 'destroyer' },
+// --- CONFIGURACIÓN ---
+const SHIPS_CONFIG: { id: ShipType; name: string; size: number }[] = [
+  { id: 'carrier', name: 'Portaaviones', size: 5 },
+  { id: 'battleship', name: 'Acorazado', size: 4 },
+  { id: 'cruiser', name: 'Crucero', size: 3 },
+  { id: 'submarine', name: 'Submarino', size: 3 },
+  { id: 'destroyer', name: 'Destructor', size: 2 },
 ];
 
-interface ShipPlacementProps {
-  onShipsPlaced: (ships: Ship[]) => void; // Callback cuando termine
-}
+// --- COMPONENTE DRAGGABLE (BARCO EN EL MUELLE) ---
+const DraggableShip = ({ ship }: { ship: typeof SHIPS_CONFIG[0] }) => {
+  const { attributes, listeners, setNodeRef, transform } = useDraggable({
+    id: `dock-${ship.id}`,
+    data: { ship, fromDock: true },
+  });
 
-export const ShipPlacement = ({ onShipsPlaced }: ShipPlacementProps) => {
-  // Estado local del tablero de previsualización
+  const style = transform ? { transform: `translate3d(${transform.x}js, ${transform.y}px, 0)` } : undefined;
+
+  return (
+    <div ref={setNodeRef} style={style} {...listeners} {...attributes} 
+         className="flex items-center gap-2 bg-slate-800 p-2 rounded cursor-grab active:cursor-grabbing hover:bg-slate-700 border border-slate-600 mb-2 shadow-lg touch-none">
+      <div className={`w-8 h-8 flex items-center justify-center font-bold text-slate-300 bg-slate-900 rounded`}>
+        {ship.size}
+      </div>
+      <div className="flex-1">
+        <p className="text-xs text-slate-400 font-bold uppercase">{ship.name}</p>
+        <div className="h-6 w-24 text-blue-400">
+           <ShipIcon type={ship.id} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- LOGICA PRINCIPAL ---
+export const ShipPlacement = ({ onShipsPlaced }: { onShipsPlaced: (ships: Ship[]) => void }) => {
   const [board, setBoard] = useState<CellState[][]>(Array(10).fill(null).map(() => Array(10).fill('EMPTY')));
   const [placedShips, setPlacedShips] = useState<Ship[]>([]);
-  const [currentShipIndex, setCurrentShipIndex] = useState(0);
   const [isHorizontal, setIsHorizontal] = useState(true);
 
-  const currentShipToPlace = AVAILABLE_SHIPS[currentShipIndex];
+  // Barcos que faltan por colocar
+  const availableShips = SHIPS_CONFIG.filter(s => !placedShips.some(ps => ps.type === s.id));
 
-  // Lógica para validar si cabe
-  const canPlaceShip = (x: number, y: number, size: number, horizontal: boolean) => {
-    // 1. Límites del mapa
+  // --- ALGORITMO ALEATORIO ---
+  const randomize = () => {
+    let attempts = 0;
+    while (attempts < 100) { // Evitar bucle infinito
+      const newShips: Ship[] = [];
+      const newBoard = Array(10).fill(null).map(() => Array(10).fill('EMPTY'));
+      let success = true;
+
+      for (const shipConfig of SHIPS_CONFIG) {
+        let placed = false;
+        let shipAttempts = 0;
+        while (!placed && shipAttempts < 50) {
+          const horizontal = Math.random() > 0.5;
+          const x = Math.floor(Math.random() * 10);
+          const y = Math.floor(Math.random() * 10);
+          
+          if (canPlace(newBoard, x, y, shipConfig.size, horizontal)) {
+             // Colocar
+             const positions: Coordinate[] = [];
+             for(let i=0; i<shipConfig.size; i++) {
+               const cx = horizontal ? x + i : x;
+               const cy = horizontal ? y : y + i;
+               newBoard[cy][cx] = 'SHIP';
+               positions.push({ x: cx, y: cy });
+             }
+             newShips.push({ id: `${shipConfig.id}-${Date.now()}`, type: shipConfig.id, size: shipConfig.size, hits: 0, sunk: false, positions });
+             placed = true;
+          }
+          shipAttempts++;
+        }
+        if (!placed) { success = false; break; }
+      }
+
+      if (success) {
+        setBoard(newBoard);
+        setPlacedShips(newShips);
+        return;
+      }
+      attempts++;
+    }
+    alert("No se pudo generar una configuración válida. Intenta de nuevo.");
+  };
+
+  const canPlace = (currentBoard: CellState[][], x: number, y: number, size: number, horizontal: boolean) => {
     if (horizontal && x + size > 10) return false;
     if (!horizontal && y + size > 10) return false;
-
-    // 2. Colisión con otros barcos
     for (let i = 0; i < size; i++) {
       const cx = horizontal ? x + i : x;
       const cy = horizontal ? y : y + i;
-      if (board[cy][cx] !== 'EMPTY') return false;
+      if (currentBoard[cy][cx] !== 'EMPTY') return false;
     }
     return true;
   };
 
-  const handleCellClick = (x: number, y: number) => {
-    if (!currentShipToPlace) return;
+  // --- EVENTO DROP ---
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over) return;
 
-    if (canPlaceShip(x, y, currentShipToPlace.size, isHorizontal)) {
-      // 1. Calcular coordenadas
+    // Extraer coordenadas de la celda donde soltamos (id="cell-x-y")
+    const [_, xStr, yStr] = (over.id as string).split('-');
+    const x = parseInt(xStr);
+    const y = parseInt(yStr);
+
+    const shipConfig = active.data.current?.ship;
+    
+    if (shipConfig && canPlace(board, x, y, shipConfig.size, isHorizontal)) {
+      // Colocar barco
       const positions: Coordinate[] = [];
-      const newBoard = [...board.map(row => [...row])]; // Copia profunda
-
-      for (let i = 0; i < currentShipToPlace.size; i++) {
-        const cx = isHorizontal ? x + i : x;
-        const cy = isHorizontal ? y : y + i;
-        positions.push({ x: cx, y: cy });
-        newBoard[cy][cx] = 'SHIP'; // Pintar en el tablero visual
+      const newBoard = board.map(row => [...row]);
+      
+      for (let i = 0; i < shipConfig.size; i++) {
+         const cx = isHorizontal ? x + i : x;
+         const cy = isHorizontal ? y : y + i;
+         newBoard[cy][cx] = 'SHIP';
+         positions.push({ x: cx, y: cy });
       }
 
-      // 2. Guardar el barco
-      const newShip: Ship = {
-        id: `${currentShipToPlace.id}-${Date.now()}`, // ID único temporal
-        type: currentShipToPlace.id as any,
-        size: currentShipToPlace.size,
+      setBoard(newBoard);
+      setPlacedShips([...placedShips, {
+        id: `${shipConfig.id}-${Date.now()}`,
+        type: shipConfig.id,
+        size: shipConfig.size,
         hits: 0,
         sunk: false,
         positions
-      };
-
-      setPlacedShips([...placedShips, newShip]);
-      setBoard(newBoard);
-      setCurrentShipIndex(prev => prev + 1); // Pasar al siguiente barco
-    } else {
-      alert("¡No cabe aquí o choca con otro barco!");
+      }]);
     }
   };
 
-  const handleReset = () => {
+  const resetBoard = () => {
     setBoard(Array(10).fill(null).map(() => Array(10).fill('EMPTY')));
     setPlacedShips([]);
-    setCurrentShipIndex(0);
   };
-
-  const handleFinish = () => {
-    onShipsPlaced(placedShips);
-  };
-
-  // Si ya colocó todos
-  if (!currentShipToPlace) {
-    return (
-      <div className="text-center animate-fade-in">
-        <h2 className="text-2xl text-green-400 mb-4">¡Flota lista para el despliegue!</h2>
-        <div className="flex justify-center gap-4">
-          <button onClick={handleReset} className="px-4 py-2 bg-red-600 rounded hover:bg-red-500">Reiniciar</button>
-          <button onClick={handleFinish} className="px-6 py-2 bg-green-600 rounded font-bold hover:bg-green-500 shadow-lg shadow-green-500/50">
-            CONFIRMAR FLOTA E INICIAR
-          </button>
-        </div>
-        <div className="mt-8 opacity-50 pointer-events-none">
-           <GameBoard board={board} />
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div className="flex flex-col md:flex-row gap-8 items-start justify-center">
-      {/* Controles */}
-      <div className="bg-slate-800 p-6 rounded-lg shadow-xl w-full md:w-64">
-        <h3 className="text-xl text-blue-300 mb-4">Colocar Flota</h3>
+    <DndContext onDragEnd={handleDragEnd}>
+      <div className="flex flex-col md:flex-row gap-8 w-full max-w-5xl mx-auto p-4 animate-fade-in">
         
-        <div className="mb-6 p-4 bg-slate-900 rounded border border-slate-700">
-          <p className="text-sm text-slate-400">Colocando:</p>
-          <p className="text-xl font-bold text-white">{currentShipToPlace.name}</p>
-          <p className="text-xs text-slate-500">Tamaño: {currentShipToPlace.size} casillas</p>
+        {/* PANEL IZQUIERDO: MUELLE */}
+        <div className="w-full md:w-1/3 bg-slate-900 p-6 rounded-xl border border-slate-700 shadow-2xl h-fit">
+          <h2 className="text-2xl font-bold text-blue-400 mb-4 flex items-center gap-2">
+            ⚓ ASTILLERO
+          </h2>
+          
+          <div className="flex gap-2 mb-6">
+            <button onClick={() => setIsHorizontal(!isHorizontal)} 
+              className={`flex-1 py-2 px-4 rounded font-bold transition-all ${isHorizontal ? 'bg-blue-600 text-white shadow-blue-500/50 shadow-lg' : 'bg-slate-700 text-slate-400'}`}>
+              {isHorizontal ? 'HORIZONTAL ⮕' : 'VERTICAL ⬇'}
+            </button>
+            <button onClick={randomize} className="bg-purple-600 hover:bg-purple-500 text-white p-2 rounded" title="Aleatorio">
+              🎲
+            </button>
+             <button onClick={resetBoard} className="bg-red-600 hover:bg-red-500 text-white p-2 rounded" title="Borrar todo">
+              🗑️
+            </button>
+          </div>
+
+          <div className="space-y-2 min-h-[200px]">
+            {availableShips.length === 0 ? (
+              <div className="text-center p-4 bg-green-900/30 border border-green-500/50 rounded text-green-400 animate-pulse">
+                ✅ Flota lista para combate
+              </div>
+            ) : (
+              availableShips.map(ship => <DraggableShip key={ship.id} ship={ship} />)
+            )}
+          </div>
+
+          {availableShips.length === 0 && (
+            <button onClick={() => onShipsPlaced(placedShips)} className="w-full mt-8 bg-green-500 hover:bg-green-400 text-black font-black py-4 rounded-lg shadow-xl transform hover:scale-105 transition-all">
+              ¡DESPLEGAR FLOTA! ⚔️
+            </button>
+          )}
         </div>
 
-        <button 
-          onClick={() => setIsHorizontal(!isHorizontal)}
-          className="w-full mb-4 py-3 bg-blue-600 hover:bg-blue-500 rounded text-white font-bold transition-all"
-        >
-          Rotar: {isHorizontal ? 'HORIZONTAL ⮕' : 'VERTICAL ⬇'}
-        </button>
-
-        <p className="text-xs text-slate-400 text-center">
-          Haz clic en el tablero para colocar el barco.
-        </p>
+        {/* PANEL DERECHO: TABLERO DROP */}
+        <div className="flex-1 flex flex-col items-center">
+          <h3 className="text-slate-400 mb-2">ARRASTRA LOS BARCOS AL MAPA</h3>
+          
+          {/* Usamos GameBoard pero inyectamos lógica de Droppable */}
+          <PlacementBoard board={board} />
+        </div>
       </div>
+    </DndContext>
+  );
+};
 
-      {/* Tablero Interactivo */}
-      <div>
-        <GameBoard 
-          board={board} 
-          onCellClick={handleCellClick}
-        />
-      </div>
+// Componente interno para hacer las celdas "Droppables"
+const PlacementBoard = ({ board }: { board: CellState[][] }) => {
+  return (
+    <div className="grid grid-cols-10 gap-0.5 bg-slate-700 p-0.5 border-4 border-slate-700 shadow-2xl">
+      {board.map((row, y) => row.map((cell, x) => (
+        <PlacementCell key={`${x}-${y}`} x={x} y={y} cell={cell} />
+      )))}
+    </div>
+  );
+};
+
+const PlacementCell = ({ x, y, cell }: { x: number, y: number, cell: CellState }) => {
+  const { setNodeRef, isOver } = useDroppable({ id: `cell-${x}-${y}` });
+  
+  return (
+    <div ref={setNodeRef} 
+      className={`w-8 h-8 md:w-10 md:h-10 flex items-center justify-center border border-slate-800/50 transition-colors
+        ${cell === 'SHIP' ? 'bg-gray-500 border-gray-400' : 'bg-slate-900'}
+        ${isOver ? 'bg-blue-500/50' : ''}
+      `}
+    >
+      {cell === 'SHIP' && <div className="w-full h-full bg-slate-600/50"></div>}
     </div>
   );
 };

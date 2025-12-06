@@ -1,80 +1,81 @@
-import {type CellState, type Coordinate } from '../types';
+import { motion } from 'framer-motion'; // ¡Animaciones!
+import { type CellState } from '../types';
+import { ShipIcon } from './ShipIcons'; // Importamos iconos si quisieramos renderizarlos en la grid
 
 interface GameBoardProps {
-  board: CellState[][];          // La matriz de datos 10x10
-  isEnemy?: boolean;             // ¿Es el tablero enemigo? (Para cambiar colores/cursores)
-  onCellClick?: (x: number, y: number) => void; // Función al hacer clic
-  showShips?: boolean;           // ¿Debemos mostrar los barcos? (No en el enemigo)
-  disabled?: boolean;            // Para bloquear clics cuando no es tu turno
+  board: CellState[][];
+  isEnemy?: boolean;
+  onCellClick?: (x: number, y: number) => void;
+  showShips?: boolean;
+  disabled?: boolean;
 }
 
-export const GameBoard = ({ 
-  board, 
-  isEnemy = false, 
-  onCellClick, 
-  showShips = true,
-  disabled = false
-}: GameBoardProps) => {
+export const GameBoard = ({ board, isEnemy, onCellClick, showShips, disabled }: GameBoardProps) => {
 
-  // Función para decidir el color de la celda según su estado
-  const getCellClass = (cell: CellState, x: number, y: number) => {
-    const base = "w-8 h-8 md:w-10 md:h-10 border border-slate-700 flex items-center justify-center text-lg transition-all duration-200";
-    
-    // Si está deshabilitado o ya fue disparado, cursor default. Si no, pointer.
-    const cursor = disabled || cell === 'HIT' || cell === 'MISS' ? 'cursor-default' : 'cursor-pointer hover:bg-slate-700';
-    
-    // Lógica visual de estados
-    if (cell === 'HIT') return `${base} bg-red-500 border-red-600 animate-pulse`; // ¡Impacto!
-    if (cell === 'MISS') return `${base} bg-blue-900/50 text-blue-400`; // Agua
-    
-    if (cell === 'SHIP') {
-      // Si es enemigo, NO mostramos el barco (salvo que sea debug/final)
-      if (isEnemy && !showShips) return `${base} bg-slate-800 ${cursor}`;
-      return `${base} bg-gray-400 border-gray-500 ${cursor}`; // Barco visible
+  const renderCellContent = (cell: CellState) => {
+    if (cell === 'HIT') {
+      return (
+        <motion.div 
+          initial={{ scale: 0 }} animate={{ scale: 1 }} 
+          className="absolute inset-0 flex items-center justify-center bg-red-500/40 z-10"
+        >
+          <span className="text-xl md:text-2xl drop-shadow-md animate-bounce">💥</span>
+        </motion.div>
+      );
     }
-
-    // Celda vacía (mar)
-    return `${base} bg-slate-800 ${cursor}`;
+    if (cell === 'MISS') {
+      return (
+        <motion.div 
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+          className="w-3 h-3 md:w-4 md:h-4 bg-blue-400/50 rounded-full"
+        />
+      );
+    }
+    return null;
   };
 
   return (
-    <div className="flex flex-col items-center">
-      {/* Etiquetas de Columnas (A-J) o (0-9) */}
-      <div className="flex mb-1">
-        <div className="w-6" /> {/* Espaciador para las filas */}
-        {Array.from({ length: 10 }).map((_, i) => (
-          <div key={i} className="w-8 md:w-10 text-center text-xs text-slate-500 font-mono">
-            {i}
-          </div>
-        ))}
-      </div>
+    <div className="relative">
+      {/* Marco decorativo */}
+      <div className="absolute -inset-2 bg-gradient-to-br from-slate-700 to-slate-800 rounded-lg -z-10 shadow-2xl"></div>
 
-      <div className="flex">
-        {/* Etiquetas de Filas (0-9) */}
-        <div className="flex flex-col mr-1">
-          {Array.from({ length: 10 }).map((_, i) => (
-            <div key={i} className="h-8 md:h-10 flex items-center justify-center text-xs text-slate-500 font-mono w-6">
-              {i}
+      {/* Grid */}
+      <div className="grid grid-cols-10 gap-px bg-slate-700 border-2 border-slate-600 shadow-inner">
+        {board.map((row, y) => row.map((cell, x) => {
+          
+          let bgClass = "bg-slate-900";
+          if (cell === 'SHIP') {
+             // Si soy el enemigo, no mostrar el barco (a menos que ya esté impactado, pero eso lo maneja el 'HIT')
+             bgClass = (isEnemy && !showShips) ? "bg-slate-900" : "bg-slate-600";
+          }
+          if (cell === 'HIT') bgClass = "bg-red-900"; // Fondo rojo quemado
+          if (cell === 'MISS') bgClass = "bg-blue-900";
+
+          // Clase para cursor
+          const canClick = !disabled && isEnemy && cell !== 'HIT' && cell !== 'MISS';
+          
+          return (
+            <div 
+              key={`${x}-${y}`}
+              onClick={() => canClick && onCellClick?.(x, y)}
+              className={`
+                w-8 h-8 md:w-10 md:h-10 relative flex items-center justify-center
+                ${bgClass}
+                ${canClick ? 'cursor-crosshair hover:bg-slate-800' : 'cursor-default'}
+                transition-colors duration-300
+              `}
+            >
+              {renderCellContent(cell)}
+              
+              {/* Overlay de mira para el enemigo */}
+              {canClick && (
+                <div className="absolute inset-0 opacity-0 hover:opacity-100 flex items-center justify-center pointer-events-none">
+                  <div className="w-2 h-2 border border-red-500 rounded-full"></div>
+                </div>
+              )}
             </div>
-          ))}
-        </div>
-
-        {/* LA GRID 10x10 */}
-        <div className="grid grid-cols-10 border-2 border-slate-600 bg-slate-900 shadow-2xl">
-          {board.map((row, y) => (
-            row.map((cell, x) => (
-              <div 
-                key={`${x}-${y}`}
-                className={getCellClass(cell, x, y)}
-                onClick={() => !disabled && onCellClick?.(x, y)}
-              >
-                {/* Iconos opcionales dentro de la celda */}
-                {cell === 'HIT' && '💥'}
-                {cell === 'MISS' && '💧'}
-              </div>
-            ))
-          ))}
-        </div>
+          );
+        }))}
       </div>
     </div>
   );
