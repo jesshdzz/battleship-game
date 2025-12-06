@@ -1,5 +1,3 @@
-// --- TIPOS BÁSICOS ---
-
 export type PlayerId = string; // El Socket ID
 export type RoomId = string;   // Código de la sala (ej: "XJ9-12")
 
@@ -24,7 +22,7 @@ export interface Ship {
 // El estado de una celda para mostrar en pantalla
 export type CellState = 'EMPTY' | 'SHIP' | 'HIT' | 'MISS';
 
-// --- ESTADO DEL JUEGO (Lo que vive en el servidor) ---
+// --- ESTADO DEL JUEGO ---
 export interface Player {
     id: PlayerId;
     name: string;
@@ -32,6 +30,7 @@ export interface Player {
     ships: Ship[];
     myBoard: CellState[][];    // Tablero propio
     shotsFired: Coordinate[];  // Historial de disparos hechos
+    enemyBoard: CellState[][]; // Tablero de rastreo (mis disparos)
 }
 
 export interface GameState {
@@ -42,7 +41,7 @@ export interface GameState {
     winner: PlayerId | null;
 }
 
-// --- EVENTOS DE SOCKET (La comunicación) ---
+// --- EVENTOS DE SOCKET ---
 // Estos son los nombres de los mensajes que enviaremos
 export const EVENTS = {
     JOIN_ROOM: 'join_room',
@@ -51,4 +50,4 @@ export const EVENTS = {
     PLACE_SHIP: 'place_ship',
     FIRE_SHOT: 'fire_shot',
     ERROR: 'error_msg'
-};
+}

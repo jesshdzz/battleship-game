@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import io, { Socket } from 'socket.io-client';
-import { EVENTS } from './types';
-import type { GameState } from './types';
+import { EVENTS, type GameState, type Ship, type CellState } from './types';
+import { GameBoard } from './components/GameBoard';
+import { ShipPlacement } from './components/ShipPlacement';
 
 const socket: Socket = io('http://localhost:3000');
 
@@ -9,115 +10,148 @@ function App() {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [playerName, setPlayerName] = useState('');
   const [roomCode, setRoomCode] = useState('');
-  const [error, setError] = useState('');
+  const [myId, setMyId] = useState('');
 
   useEffect(() => {
-    // Escuchar actualizaciones del juego
+    socket.on('connect', () => setMyId(socket.id || ''));
+    
     socket.on(EVENTS.GAME_UPDATE, (game: GameState) => {
       setGameState(game);
-      setError(''); // Limpiar errores si todo va bien
     });
 
-    socket.on(EVENTS.ERROR, (msg: string) => {
-      setError(msg);
-    });
-
-    return () => {
-      socket.off(EVENTS.GAME_UPDATE);
-      socket.off(EVENTS.ERROR);
-    };
+    return () => { socket.off(EVENTS.GAME_UPDATE); };
   }, []);
 
-  const createRoom = () => {
-    if (!playerName) return alert('Escribe tu nombre');
-    socket.emit(EVENTS.CREATE_ROOM, playerName);
+  const createRoom = () => { if(playerName) socket.emit(EVENTS.CREATE_ROOM, playerName); };
+  const joinRoom = () => { if(playerName && roomCode) socket.emit(EVENTS.JOIN_ROOM, { roomId: roomCode.toUpperCase(), playerName }); };
+  
+  const handleShipsPlaced = (ships: Ship[]) => {
+    if(!gameState) return;
+    socket.emit(EVENTS.PLACE_SHIP, { roomId: gameState.roomId, ships });
   };
 
-  const joinRoom = () => {
-    if (!playerName || !roomCode) return alert('Faltan datos');
-    socket.emit(EVENTS.JOIN_ROOM, { roomId: roomCode.toUpperCase(), playerName });
+  const handleAttack = (x: number, y: number) => {
+    if(!gameState) return;
+    // Evitar disparar si no es mi turno
+    if(gameState.turn !== myId) return; 
+    socket.emit(EVENTS.FIRE_SHOT, { roomId: gameState.roomId, x, y });
   };
 
-  // --- VISTA: DENTRO DEL JUEGO (LOBBY) ---
-  if (gameState) {
+  // --- VISTA 1: LOGIN / LOBBY ---
+  if (!gameState) {
     return (
-      <div className="min-h-screen bg-slate-900 text-white p-8 font-mono">
-        <h1 className="text-3xl text-yellow-400 mb-4">Sala: {gameState.roomId}</h1>
-
-        <div className="bg-slate-800 p-6 rounded-lg mb-8">
-          <h2 className="text-xl mb-4">Jugadores:</h2>
-          <ul>
-            {gameState.players.map((p, i) => (
-              <li key={p.id} className="text-lg py-2 border-b border-slate-700">
-                {i + 1}. {p.name} {p.id === socket.id ? '(Tú)' : ''}
-              </li>
-            ))}
-          </ul>
-
-          {gameState.players.length < 2 && (
-            <p className="mt-4 text-gray-400 animate-pulse">Esperando a tu oponente...</p>
-          )}
-
-          {gameState.players.length === 2 && (
-            <p className="mt-4 text-green-400 font-bold">¡Oponente encontrado! La batalla comenzará pronto.</p>
-          )}
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center font-mono text-white">
+        <div className="bg-slate-900 p-8 rounded-xl shadow-2xl border border-slate-800 w-96">
+          <h1 className="text-4xl text-center mb-8 font-bold text-blue-500">BATTLESHIP</h1>
+          <input className="w-full bg-slate-800 p-3 mb-4 border border-slate-700 rounded" placeholder="Tu Nombre" value={playerName} onChange={e => setPlayerName(e.target.value)} />
+          <button onClick={createRoom} className="w-full bg-blue-600 p-3 rounded font-bold mb-4 hover:bg-blue-500">CREAR SALA</button>
+          <div className="flex gap-2">
+            <input className="flex-1 bg-slate-800 p-3 border border-slate-700 rounded uppercase" placeholder="CÓDIGO" value={roomCode} onChange={e => setRoomCode(e.target.value)} />
+            <button onClick={joinRoom} className="bg-slate-700 px-4 rounded font-bold hover:bg-slate-600">UNIRSE</button>
+          </div>
         </div>
       </div>
     );
   }
 
-  // --- VISTA: MENÚ PRINCIPAL ---
-  return (
-    <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center font-mono">
-      <div className="max-w-md w-full bg-slate-900 p-8 rounded-xl shadow-2xl border border-slate-800">
-        <h1 className="text-4xl font-bold text-center text-blue-500 mb-8 tracking-tighter">BATTLESHIP</h1>
+  // Identificar quién soy yo y quién es el enemigo en el estado del juego
+  const me = gameState.players.find(p => p.id === myId);
+  const enemy = gameState.players.find(p => p.id !== myId);
+  const isMyTurn = gameState.turn === myId;
 
-        {error && <div className="bg-red-500/20 text-red-400 p-3 mb-4 rounded text-center text-sm">{error}</div>}
+  // --- VISTA 2: ESPERANDO RIVAL ---
+  if (gameState.status === 'LOBBY') {
+    return (
+      <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center">
+        <h2 className="text-2xl mb-4">Sala: <span className="text-yellow-400 text-4xl font-mono">{gameState.roomId}</span></h2>
+        <p className="animate-pulse text-slate-400">Esperando al segundo jugador...</p>
+      </div>
+    );
+  }
 
-        <div className="space-y-4">
-          <div>
-            <label className="block text-xs uppercase text-slate-400 mb-1">Tu Nombre de Capitán</label>
-            <input
-              type="text"
-              className="w-full bg-slate-800 border border-slate-700 p-3 rounded text-white focus:outline-none focus:border-blue-500"
-              placeholder="Ej: Jack Sparrow"
-              value={playerName}
-              onChange={(e) => setPlayerName(e.target.value)}
-            />
+  // --- VISTA 3: COLOCANDO BARCOS ---
+  if (gameState.status === 'PLACING_SHIPS') {
+    return (
+      <div className="min-h-screen bg-slate-900 text-white p-4 flex flex-col items-center">
+        <h1 className="text-2xl font-bold mb-8">PREPARAR FLOTA</h1>
+        {me?.ready ? (
+          <div className="text-center mt-20">
+            <h2 className="text-3xl text-green-400 mb-4">¡Flota Desplegada!</h2>
+            <p className="animate-pulse text-slate-400">Esperando a que el enemigo termine...</p>
           </div>
+        ) : (
+          <ShipPlacement onShipsPlaced={handleShipsPlaced} />
+        )}
+      </div>
+    );
+  }
 
-          <button
-            onClick={createRoom}
-            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded transition-all"
-          >
-            CREAR NUEVA FLOTA
-          </button>
-
-          <div className="relative flex py-2 items-center">
-            <div className="flex-grow border-t border-slate-700"></div>
-            <span className="flex-shrink mx-4 text-slate-500 text-xs">O ÚNETE A UNA</span>
-            <div className="flex-grow border-t border-slate-700"></div>
-          </div>
-
-          <div className="flex gap-2">
-            <input
-              type="text"
-              className="flex-1 bg-slate-800 border border-slate-700 p-3 rounded text-white uppercase placeholder:normal-case"
-              placeholder="Código de Sala"
-              value={roomCode}
-              onChange={(e) => setRoomCode(e.target.value)}
-            />
-            <button
-              onClick={joinRoom}
-              className="bg-slate-700 hover:bg-slate-600 px-6 rounded font-bold text-slate-200"
-            >
-              UNIRSE
-            </button>
+  // --- VISTA 4: BATALLA (Juego Principal) ---
+  if (gameState.status === 'PLAYING') {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white p-2 md:p-8 flex flex-col items-center">
+        <div className="mb-6 text-center">
+          <h1 className="text-3xl font-bold mb-2">BATALLA NAVAL</h1>
+          <div className={`text-xl px-6 py-2 rounded-full inline-block ${isMyTurn ? 'bg-green-600 animate-pulse' : 'bg-red-900/50'}`}>
+            {isMyTurn ? '¡ES TU TURNO! ATACA' : 'ESPERANDO AL ENEMIGO...'}
           </div>
         </div>
+
+        <div className="flex flex-col md:flex-row gap-8 md:gap-16 items-start">
+          
+          {/* TABLERO ENEMIGO (DONDE DISPARO) */}
+          <div className="flex flex-col items-center">
+            <h3 className="text-red-400 mb-2 font-bold flex items-center gap-2">
+              RADAR ENEMIGO (ATAQUE) 🎯
+            </h3>
+            <GameBoard 
+              board={me?.enemyBoard || []} 
+              isEnemy={true}
+              showShips={false} // ¡No mostrar barcos enemigos!
+              onCellClick={handleAttack}
+              disabled={!isMyTurn}
+            />
+          </div>
+
+          {/* MI TABLERO (DONDE RECIBO) */}
+          <div className="flex flex-col items-center opacity-80 scale-90 md:scale-100">
+            <h3 className="text-blue-400 mb-2 font-bold flex items-center gap-2">
+              MI FLOTA 🛡️
+            </h3>
+            <GameBoard 
+              board={me?.myBoard || []} 
+              isEnemy={false}
+              showShips={true}
+              disabled={true} // No puedo dispararme a mí mismo
+            />
+          </div>
+        </div>
+
+        {/* LOG DEL JUEGO (Opcional) */}
+        <div className="mt-8 text-slate-500 text-sm">
+          Jugando contra: {enemy?.name || 'Desconocido'}
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  // --- VISTA 5: GAME OVER ---
+  if (gameState.status === 'GAME_OVER') {
+    const iWon = gameState.winner === myId;
+    return (
+      <div className={`min-h-screen flex items-center justify-center ${iWon ? 'bg-green-900' : 'bg-red-900'} text-white`}>
+        <div className="text-center p-12 bg-black/30 rounded-xl backdrop-blur-sm">
+          <h1 className="text-6xl font-black mb-4">{iWon ? '¡VICTORIA!' : 'DERROTA'}</h1>
+          <p className="text-2xl mb-8">{iWon ? 'Has hundido la flota enemiga.' : 'Tu flota descansa en el fondo del mar.'}</p>
+          <button onClick={() => window.location.reload()} className="px-8 py-3 bg-white text-black font-bold rounded hover:bg-gray-200">
+            JUGAR DE NUEVO
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return <div>Cargando...</div>;
 }
 
 export default App;
