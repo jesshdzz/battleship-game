@@ -128,10 +128,11 @@ io.on('connection', (socket) => {
       game.winner = attacker.id;
       // Revelamos todo el mapa al final
     } else {
-      // Cambiar turno solo si falló (opcional) o siempre.
-      // Regla clásica: Si aciertas, repites turno. Si fallas, cambio.
-      // Por simplicidad para el MVP: Cambio de turno siempre.
-      game.turn = defender.id;
+      if (result === 'HIT') {
+        game.turn = socket.id;
+      } else {
+        game.turn = defender.id;
+      }  
     }
 
     io.to(roomId).emit(EVENTS.GAME_UPDATE, game);

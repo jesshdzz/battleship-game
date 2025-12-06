@@ -12,37 +12,32 @@ export const processShot = (
   x: number,
   y: number
 ): { result: 'HIT' | 'MISS' | 'SUNK' | 'INVALID', hitShipName?: string } => {
-
-  // Validar si ya disparó ahí antes
+  
   const alreadyShot = attacker.shotsFired.some(s => s.x === x && s.y === y);
   if (alreadyShot) return { result: 'INVALID' };
 
-  // Registrar el disparo en el historial del atacante
   attacker.shotsFired.push({ x, y });
 
-  // Buscar si impactó algún barco del defensor
+  // Buscar impacto
   for (const ship of defender.ships) {
     const hitIndex = ship.positions.findIndex(pos => pos.x === x && pos.y === y);
 
     if (hitIndex !== -1) {
-      // ¡IMPACTO!
       ship.hits++;
-      
-      // Actualizar el tablero "público" del atacante (lo que él ve del enemigo)
       attacker.enemyBoard[y][x] = 'HIT';
+      defender.myBoard[y][x] = 'HIT'; // Actualizamos el tablero del defensor también
 
-      // Verificar si se hundió
       if (ship.hits >= ship.size) {
         ship.sunk = true;
+        // Marcar todo el barco como hundido visualmente si quieres (opcional)
         return { result: 'SUNK', hitShipName: ship.type };
       }
-
       return { result: 'HIT' };
     }
   }
 
-  // Si no encontró nada, es AGUA
   attacker.enemyBoard[y][x] = 'MISS';
+  defender.myBoard[y][x] = 'MISS'; // El defensor ve el agua
   return { result: 'MISS' };
 };
 
