@@ -30,6 +30,7 @@ export interface Player {
     ships: Ship[];
     myBoard: CellState[][];    // Tablero propio
     shotsFired: Coordinate[];  // Historial de disparos hechos
+    enemyBoard: CellState[][]; // Tablero de rastreo (mis disparos)
 }
 
 export interface GameState {
