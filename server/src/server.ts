@@ -128,7 +128,7 @@ io.on('connection', (socket) => {
       game.winner = attacker.id;
       // Revelamos todo el mapa al final
     } else {
-      if (result === 'HIT') {
+      if (result === 'HIT' || result === 'SUNK') {
         game.turn = socket.id;
       } else {
         game.turn = defender.id;

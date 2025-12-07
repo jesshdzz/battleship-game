@@ -16,7 +16,7 @@ function App() {
 
   useEffect(() => {
     socket.on('connect', () => setMyId(socket.id || ''));
-    
+
     socket.on(EVENTS.GAME_UPDATE, (game: GameState) => {
       setGameState(game);
     });
@@ -24,18 +24,18 @@ function App() {
     return () => { socket.off(EVENTS.GAME_UPDATE); };
   }, []);
 
-  const createRoom = () => { if(playerName) socket.emit(EVENTS.CREATE_ROOM, playerName); };
-  const joinRoom = () => { if(playerName && roomCode) socket.emit(EVENTS.JOIN_ROOM, { roomId: roomCode.toUpperCase(), playerName }); };
-  
+  const createRoom = () => { if (playerName) socket.emit(EVENTS.CREATE_ROOM, playerName); };
+  const joinRoom = () => { if (playerName && roomCode) socket.emit(EVENTS.JOIN_ROOM, { roomId: roomCode.toUpperCase(), playerName }); };
+
   const handleShipsPlaced = (ships: Ship[]) => {
-    if(!gameState) return;
+    if (!gameState) return;
     socket.emit(EVENTS.PLACE_SHIP, { roomId: gameState.roomId, ships });
   };
 
   const handleAttack = (x: number, y: number) => {
-    if(!gameState) return;
+    if (!gameState) return;
     // Evitar disparar si no es mi turno
-    if(gameState.turn !== myId) return; 
+    if (gameState.turn !== myId) return;
     socket.emit(EVENTS.FIRE_SHOT, { roomId: gameState.roomId, x, y });
   };
 
@@ -94,22 +94,22 @@ function App() {
       <div className="min-h-screen bg-slate-950 text-white p-2 md:p-8 flex flex-col items-center">
         <div className="mb-6 text-center">
           <h1 className="text-3xl font-bold mb-2">BATALLA NAVAL</h1>
-          <div className={`text-xl px-6 py-2 rounded-full inline-block ${isMyTurn ? 'bg-green-600 animate-pulse' : 'bg-red-900/50'}`}>
+          <div className={`text-xl px-6 py-2 rounded-full inline-block ${isMyTurn ? 'bg-green-500 animate-pulse' : 'bg-red-900/50'}`}>
             {isMyTurn ? '¡ES TU TURNO! ATACA' : 'ESPERANDO AL ENEMIGO...'}
           </div>
         </div>
 
         <div className="flex flex-col md:flex-row gap-8 md:gap-16 items-start">
-          
+
           {/* TABLERO ENEMIGO (DONDE DISPARO) */}
           <div className="flex flex-col items-center">
             <h3 className="text-red-400 mb-2 font-bold flex items-center gap-2">
               RADAR ENEMIGO (ATAQUE) 🎯
             </h3>
-            <GameBoard 
-              board={me?.enemyBoard || []} 
+            <GameBoard
+              board={me?.enemyBoard || []}
               isEnemy={true}
-              showShips={false} // ¡No mostrar barcos enemigos!
+              ships={enemy?.ships || []} // Pasamos los barcos para que se muestren SOLO si sunk=true
               onCellClick={handleAttack}
               disabled={!isMyTurn}
             />
@@ -120,10 +120,10 @@ function App() {
             <h3 className="text-blue-400 mb-2 font-bold flex items-center gap-2">
               MI FLOTA 🛡️
             </h3>
-            <GameBoard 
-              board={me?.myBoard || []} 
+            <GameBoard
+              board={me?.myBoard || []}
               isEnemy={false}
-              showShips={true}
+              ships={me?.ships || []} // Pasamos mis barcos
               disabled={true} // No puedo dispararme a mí mismo
             />
           </div>
@@ -141,13 +141,20 @@ function App() {
   if (gameState.status === 'GAME_OVER') {
     const iWon = gameState.winner === myId;
     return (
-      <div className={`min-h-screen flex items-center justify-center ${iWon ? 'bg-green-900' : 'bg-red-900'} text-white`}>
-        <div className="text-center p-12 bg-black/30 rounded-xl backdrop-blur-sm">
-          <h1 className="text-6xl font-black mb-4">{iWon ? '¡VICTORIA!' : 'DERROTA'}</h1>
-          <p className="text-2xl mb-8">{iWon ? 'Has hundido la flota enemiga.' : 'Tu flota descansa en el fondo del mar.'}</p>
-          <button onClick={() => window.location.reload()} className="px-8 py-3 bg-white text-black font-bold rounded hover:bg-gray-200">
-            JUGAR DE NUEVO
-          </button>
+      <div className={`min-h-screen flex items-center justify-center ${iWon ? 'bg-gradient-to-b from-green-900 to-black' : 'bg-gradient-to-b from-red-900 to-black'} text-white`}>
+        <div className="text-center p-12 bg-black/50 rounded-2xl backdrop-blur-md shadow-2xl border border-white/10 animate-fade-in-up">
+          <div className="text-8xl mb-4">{iWon ? '🏆' : '💀'}</div>
+          <h1 className={`text-6xl font-black mb-4 transparent bg-clip-text bg-gradient-to-r ${iWon ? 'from-yellow-400 to-yellow-600' : 'from-gray-400 to-gray-600'}`}>
+            {iWon ? '¡VICTORIA!' : 'DERROTA'}
+          </h1>
+          <p className="text-2xl mb-8 text-slate-300">
+            {iWon ? 'Has dominado los mares. La flota enemiga ha sido destruida.' : 'Tu flota descansa en el fondo del océano. Mejor suerte la próxima vez.'}
+          </p>
+          <div className="flex gap-4 justify-center">
+            <button onClick={() => window.location.reload()} className="px-8 py-3 bg-white text-black font-bold rounded-lg hover:bg-gray-200 hover:scale-105 transition-all shadow-lg">
+              JUGAR DE NUEVO
+            </button>
+          </div>
         </div>
       </div>
     );
