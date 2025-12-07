@@ -37,6 +37,19 @@ function App() {
     socket.emit(EVENTS.FIRE_SHOT, { roomId: gameState.roomId, x, y });
   };
 
+  // ... (debajo de handleAttack)
+
+  const handleSurrender = () => {
+    if (!gameState) return;
+    
+    // Confirmación para evitar clicks por error
+    const confirm = window.confirm("¿Estás seguro de que quieres rendirte? Tu flota será destruida.");
+    
+    if (confirm) {
+      socket.emit(EVENTS.SURRENDER, { roomId: gameState.roomId });
+    }
+  };
+
   // --- VISTA 1: LOGIN / LOBBY ---
   if (!gameState) {
     return (
@@ -127,6 +140,16 @@ function App() {
           </div>
         </div>
 
+        {/* --- NUEVO BOTÓN DE RENDIRSE (Abajo y al centro) --- */}
+        <div className="mt-8 flex justify-center">
+          <button 
+            onClick={handleSurrender}
+            className="flex items-center gap-2 bg-transparent border border-red-800 text-red-500 hover:bg-red-900/30 hover:text-red-200 px-6 py-2 rounded transition-all font-bold uppercase text-sm tracking-widest"
+          >
+            🏳️ Rendirse
+          </button>
+        </div>
+
         {/* LOG DEL JUEGO (Opcional) */}
         <div className="mt-8 text-slate-500 text-sm">
           Jugando contra: {enemy?.name || 'Desconocido'}
@@ -136,23 +159,34 @@ function App() {
   }
 
   // --- VISTA 5: GAME OVER ---
+  // --- VISTA 5: GAME OVER ---
   if (gameState.status === 'GAME_OVER') {
     const iWon = gameState.winner === myId;
+    
     return (
-      <div className={`min-h-screen flex items-center justify-center ${iWon ? 'bg-gradient-to-b from-green-900 to-black' : 'bg-gradient-to-b from-red-900 to-black'} text-white`}>
-        <div className="text-center p-12 bg-black/50 rounded-2xl backdrop-blur-md shadow-2xl border border-white/10 animate-fade-in-up">
-          <div className="text-8xl mb-4">{iWon ? '🏆' : '💀'}</div>
-          <h1 className={`text-6xl font-black mb-4 transparent bg-clip-text bg-gradient-to-r ${iWon ? 'from-yellow-400 to-yellow-600' : 'from-gray-400 to-gray-600'}`}>
-            {iWon ? '¡VICTORIA!' : 'DERROTA'}
+      <div className={`min-h-screen flex items-center justify-center relative overflow-hidden font-mono`}>
+        {/* Fondo con color condicional */}
+        <div className={`absolute inset-0 ${iWon ? 'bg-green-950' : 'bg-red-950'} opacity-90`}></div>
+        
+        <div className="relative z-10 text-center p-12 bg-black/40 rounded-2xl backdrop-blur-md border border-white/10 shadow-2xl max-w-lg mx-4">
+          <div className="text-6xl mb-4">{iWon ? '🏆' : '💀'}</div>
+          
+          <h1 className={`text-5xl md:text-7xl font-black mb-2 tracking-tighter ${iWon ? 'text-green-400' : 'text-red-500'}`}>
+            {iWon ? 'VICTORIA' : 'DERROTA'}
           </h1>
-          <p className="text-2xl mb-8 text-slate-300">
-            {iWon ? 'Has dominado los mares. La flota enemiga ha sido destruida.' : 'Tu flota descansa en el fondo del océano. Mejor suerte la próxima vez.'}
+          
+          <p className="text-xl md:text-2xl mb-8 text-slate-300 font-light">
+            {iWon 
+              ? 'El enemigo ha sido eliminado.' 
+              : 'Tu flota ha sido destruida.'}
           </p>
-          <div className="flex gap-4 justify-center">
-            <button onClick={() => window.location.reload()} className="px-8 py-3 bg-white text-black font-bold rounded-lg hover:bg-gray-200 hover:scale-105 transition-all shadow-lg">
-              JUGAR DE NUEVO
-            </button>
-          </div>
+          
+          <button 
+            onClick={() => window.location.reload()} 
+            className="w-full px-8 py-4 bg-white hover:bg-slate-200 text-black font-black text-lg tracking-widest rounded-lg shadow-lg hover:scale-105 transition-all"
+          >
+            VOLVER A JUGAR
+          </button>
         </div>
       </div>
     );
