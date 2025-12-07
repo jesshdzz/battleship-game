@@ -5,7 +5,8 @@ import { GameBoard } from './components/GameBoard';
 import { ShipPlacement } from './components/ShipPlacement';
 import { useSound } from './hooks/useSound';
 
-const socket: Socket = io('http://192.168.0.35:3000');
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+const socket = io(BACKEND_URL);
 
 function App() {
   const { play, toggleSoundtrack } = useSound();
