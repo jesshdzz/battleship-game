@@ -19,7 +19,8 @@ export const GameBoard = ({ board, isEnemy, onCellClick, ships = [], disabled }:
           initial={{ scale: 0 }} animate={{ scale: 1 }}
           className="absolute inset-0 flex items-center justify-center bg-red-500/40 z-10"
         >
-          <span className="text-xl md:text-2xl drop-shadow-md animate-bounce">💥</span>
+          {isEnemy && <span className="text-xl md:text-2xl drop-shadow-md animate-bounce">💥</span>}
+          
         </motion.div>
       );
     }
@@ -111,7 +112,7 @@ export const GameBoard = ({ board, isEnemy, onCellClick, ships = [], disabled }:
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               style={{ left, top, width, height }}
-              className="absolute z-0"
+              className={`absolute z-0 ${ship.sunk && isEnemy ? 'bg-red-900' : ''}`}
             >
               {isHorizontal ? (
                 <div className="w-full h-full">
