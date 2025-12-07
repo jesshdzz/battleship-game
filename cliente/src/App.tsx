@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import io, { Socket } from 'socket.io-client';
+import io from 'socket.io-client';
 import { EVENTS, type GameState, type Ship, type CellState } from './types';
 import { GameBoard } from './components/GameBoard';
 import { ShipPlacement } from './components/ShipPlacement';
