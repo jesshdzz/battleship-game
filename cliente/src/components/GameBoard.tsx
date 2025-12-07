@@ -1,6 +1,5 @@
 import { motion } from 'framer-motion'; // ¡Animaciones!
 import { type CellState } from '../types';
-import { ShipIcon } from './ShipIcons'; // Importamos iconos si quisieramos renderizarlos en la grid
 
 interface GameBoardProps {
   board: CellState[][];
