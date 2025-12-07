@@ -1,26 +1,87 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import io, { Socket } from 'socket.io-client';
 import { EVENTS, type GameState, type Ship, type CellState } from './types';
 import { GameBoard } from './components/GameBoard';
 import { ShipPlacement } from './components/ShipPlacement';
+import { useSound } from './hooks/useSound';
 
-const socket: Socket = io('http://localhost:3000');
+const socket: Socket = io('http://192.168.0.35:3000');
 
 function App() {
+  const { play, toggleSoundtrack } = useSound();
+  const prevGameState = useRef<GameState | null>(null);
+  const [soundEnabled, setSoundEnabled] = useState(false);
+
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [playerName, setPlayerName] = useState('');
   const [roomCode, setRoomCode] = useState('');
   const [myId, setMyId] = useState('');
 
+  // Efecto para sockets
   useEffect(() => {
     socket.on('connect', () => setMyId(socket.id || ''));
-
     socket.on(EVENTS.GAME_UPDATE, (game: GameState) => {
       setGameState(game);
     });
-
     return () => { socket.off(EVENTS.GAME_UPDATE); };
   }, []);
+
+  // Efecto para sonidos
+  useEffect(() => {
+    if (!gameState) return;
+    const prev = prevGameState.current;
+
+    // 1. Estados
+    if (prev?.status !== gameState.status) {
+      if (gameState.status === 'PLAYING') {
+        play('start');
+        if (soundEnabled) toggleSoundtrack(true);
+      }
+      if (gameState.status === 'GAME_OVER') {
+        toggleSoundtrack(false);
+        const iWon = gameState.winner === myId;
+        play(iWon ? 'win' : 'lose');
+      }
+    }
+
+    // 2. Hits/Misses
+    if (gameState.status === 'PLAYING' && prev) {
+      const countHits = (board: CellState[][]) => board.flat().filter(c => c === 'HIT').length;
+      const countMiss = (board: CellState[][]) => board.flat().filter(c => c === 'MISS').length;
+
+      const myShotsHits = countHits(gameState.players.find(p => p.id === myId)?.enemyBoard || []);
+      const myShotsMiss = countMiss(gameState.players.find(p => p.id === myId)?.enemyBoard || []);
+
+      const prevMyShotsHits = countHits(prev.players.find(p => p.id === myId)?.enemyBoard || []);
+      const prevMyShotsMiss = countMiss(prev.players.find(p => p.id === myId)?.enemyBoard || []);
+
+      if (myShotsHits > prevMyShotsHits) play('hit');
+      if (myShotsMiss > prevMyShotsMiss) play('miss');
+
+      // Enemy shots
+      const enemyShotsHits = countHits(gameState.players.find(p => p.id === myId)?.myBoard || []);
+      const prevEnemyShotsHits = countHits(prev.players.find(p => p.id === myId)?.myBoard || []);
+      if (enemyShotsHits > prevEnemyShotsHits) play('hit');
+    }
+
+    prevGameState.current = gameState;
+  }, [gameState, myId, play, toggleSoundtrack, soundEnabled]);
+
+  const enableAudio = () => {
+    setSoundEnabled(!soundEnabled);
+    toggleSoundtrack(!soundEnabled);
+  };
+
+  // Botón flotante de sonido
+  const SoundButton = () => (
+    <button
+      onClick={enableAudio}
+      className="fixed top-4 right-4 z-50 bg-slate-800 p-2 rounded-full border border-slate-600 hover:bg-slate-700 text-xl"
+      title={soundEnabled ? "Desactivar Sonido" : "Activar Sonido"}
+    >
+      {soundEnabled ? '🔊' : '🔇'}
+    </button>
+  );
 
   const createRoom = () => { if (playerName) socket.emit(EVENTS.CREATE_ROOM, playerName); };
   const joinRoom = () => { if (playerName && roomCode) socket.emit(EVENTS.JOIN_ROOM, { roomId: roomCode.toUpperCase(), playerName }); };
@@ -41,10 +102,10 @@ function App() {
 
   const handleSurrender = () => {
     if (!gameState) return;
-    
+
     // Confirmación para evitar clicks por error
     const confirm = window.confirm("¿Estás seguro de que quieres rendirte? Tu flota será destruida.");
-    
+
     if (confirm) {
       socket.emit(EVENTS.SURRENDER, { roomId: gameState.roomId });
     }
@@ -55,6 +116,7 @@ function App() {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center font-mono text-white">
         <div className="bg-slate-900 p-8 rounded-xl shadow-2xl border border-slate-800 w-96">
+          <SoundButton />
           <h1 className="text-4xl text-center mb-8 font-bold text-blue-500">BATTLESHIP</h1>
           <input className="w-full bg-slate-800 p-3 mb-4 border border-slate-700 rounded" placeholder="Tu Nombre" value={playerName} onChange={e => setPlayerName(e.target.value)} />
           <button onClick={createRoom} className="w-full bg-blue-600 p-3 rounded font-bold mb-4 hover:bg-blue-500">CREAR SALA</button>
@@ -85,7 +147,8 @@ function App() {
   // --- VISTA 3: COLOCANDO BARCOS ---
   if (gameState.status === 'PLACING_SHIPS') {
     return (
-      <div className="min-h-screen bg-slate-900 text-white p-4 flex flex-col items-center">
+      <div className="min-h-screen bg-slate-950 text-white p-4 flex flex-col items-center">
+        <SoundButton />
         <h1 className="text-2xl font-bold mb-8">PREPARAR FLOTA</h1>
         {me?.ready ? (
           <div className="text-center mt-20">
@@ -103,6 +166,7 @@ function App() {
   if (gameState.status === 'PLAYING') {
     return (
       <div className="min-h-screen bg-slate-950 text-white p-2 md:p-8 flex flex-col items-center">
+        <SoundButton />
         <div className="mb-6 text-center">
           <h1 className="text-3xl font-bold mb-2">BATALLA NAVAL</h1>
           <div className={`text-xl px-6 py-2 rounded-full inline-block ${isMyTurn ? 'bg-green-500 animate-pulse' : 'bg-red-900/50'}`}>
@@ -142,7 +206,7 @@ function App() {
 
         {/* --- NUEVO BOTÓN DE RENDIRSE (Abajo y al centro) --- */}
         <div className="mt-8 flex justify-center">
-          <button 
+          <button
             onClick={handleSurrender}
             className="flex items-center gap-2 bg-transparent border border-red-800 text-red-500 hover:bg-red-900/30 hover:text-red-200 px-6 py-2 rounded transition-all font-bold uppercase text-sm tracking-widest"
           >
@@ -162,27 +226,27 @@ function App() {
   // --- VISTA 5: GAME OVER ---
   if (gameState.status === 'GAME_OVER') {
     const iWon = gameState.winner === myId;
-    
+
     return (
       <div className={`min-h-screen flex items-center justify-center relative overflow-hidden font-mono`}>
         {/* Fondo con color condicional */}
         <div className={`absolute inset-0 ${iWon ? 'bg-green-950' : 'bg-red-950'} opacity-90`}></div>
-        
+
         <div className="relative z-10 text-center p-12 bg-black/40 rounded-2xl backdrop-blur-md border border-white/10 shadow-2xl max-w-lg mx-4">
           <div className="text-6xl mb-4">{iWon ? '🏆' : '💀'}</div>
-          
+
           <h1 className={`text-5xl md:text-7xl font-black mb-2 tracking-tighter ${iWon ? 'text-green-400' : 'text-red-500'}`}>
             {iWon ? 'VICTORIA' : 'DERROTA'}
           </h1>
-          
+
           <p className="text-xl md:text-2xl mb-8 text-slate-300 font-light">
-            {iWon 
-              ? 'El enemigo ha sido eliminado.' 
+            {iWon
+              ? 'El enemigo ha sido eliminado.'
               : 'Tu flota ha sido destruida.'}
           </p>
-          
-          <button 
-            onClick={() => window.location.reload()} 
+
+          <button
+            onClick={() => window.location.reload()}
             className="w-full px-8 py-4 bg-white hover:bg-slate-200 text-black font-black text-lg tracking-widest rounded-lg shadow-lg hover:scale-105 transition-all"
           >
             VOLVER A JUGAR
