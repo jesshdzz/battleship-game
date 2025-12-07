@@ -4,7 +4,9 @@ import { EVENTS, type GameState, type Ship, type CellState } from './types';
 import { GameBoard } from './components/GameBoard';
 import { ShipPlacement } from './components/ShipPlacement';
 
-const socket: Socket = io('http://localhost:3000');
+// Reemplaza localhost por TU IP real que anotaste en el paso 1
+// Ejemplo:
+const socket: Socket = io('http://192.168.0.26:3000');
 
 function App() {
   const [gameState, setGameState] = useState<GameState | null>(null);
