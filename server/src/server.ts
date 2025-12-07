@@ -143,6 +143,26 @@ io.on('connection', (socket) => {
     // Para un MVP, si uno se va, la sala queda "zombie" o se borra.
     // Lo dejaremos simple por ahora.
   });
+
+  socket.on(EVENTS.SURRENDER, ({ roomId }: { roomId: string }) => {
+    const game = games[roomId];
+    if (!game || game.status !== 'PLAYING') return;
+
+    // Identificar quién se rinde y quién gana
+    const loserId = socket.id;
+    const winner = game.players.find(p => p.id !== loserId);
+
+    if (winner) {
+      game.winner = winner.id;
+      game.status = 'GAME_OVER'; // Esto activará la pantalla de fin de juego
+      
+      // Opcional: Podrías agregar un campo "reason" al gameState si quieres
+      // mostrar un mensaje específico como "Victoria por rendición".
+      
+      io.to(roomId).emit(EVENTS.GAME_UPDATE, game);
+    }
+  });
+
 });
 
 const PORT = 3000;

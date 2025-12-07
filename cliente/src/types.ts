@@ -49,5 +49,6 @@ export const EVENTS = {
     GAME_UPDATE: 'game_update', // El servidor envía el estado nuevo
     PLACE_SHIP: 'place_ship',
     FIRE_SHOT: 'fire_shot',
-    ERROR: 'error_msg'
+    ERROR: 'error_msg',
+    SURRENDER: 'surrender',
 }
