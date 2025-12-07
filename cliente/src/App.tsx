@@ -6,7 +6,7 @@ import { ShipPlacement } from './components/ShipPlacement';
 
 // Reemplaza localhost por TU IP real que anotaste en el paso 1
 // Ejemplo:
-const socket: Socket = io('http://192.168.0.26:3000');
+const socket: Socket = io('http://192.168.0.35:3000');
 
 function App() {
   const [gameState, setGameState] = useState<GameState | null>(null);

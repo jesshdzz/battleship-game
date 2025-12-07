@@ -29,12 +29,13 @@ const colors = {
 
 type ColorPalette = typeof colors.ally;
 
-const SHIPS: { id: ShipType; name: string; size: number; desc: string; renderTop: (c: ColorPalette) => JSX.Element; renderProfile: (c: ColorPalette) => JSX.Element }[] = [
+const SHIPS: { id: ShipType; name: string; size: number; desc: string; viewBox?: string; renderTop: (c: ColorPalette) => JSX.Element; renderProfile: (c: ColorPalette) => JSX.Element }[] = [
   {
     id: 'carrier',
     name: "Portaaviones Clase Titán",
     size: 5,
     desc: "Plataforma de despliegue aéreo masivo. Lento pero estratégico.",
+    viewBox: '0 0 300 80',
     renderTop: (c) => (
       <g>
         {/* Hull */}
@@ -73,6 +74,7 @@ const SHIPS: { id: ShipType; name: string; size: number; desc: string; renderTop
     name: "Acorazado MK-IV",
     size: 4,
     desc: "Blindaje pesado y artillería de largo alcance.",
+    viewBox: '20 10 220 60',
     renderTop: (c) => (
       <g>
         {/* Hull */}
@@ -112,6 +114,7 @@ const SHIPS: { id: ShipType; name: string; size: number; desc: string; renderTop
     name: "Submarino Fantasma",
     size: 3,
     desc: "Sigiloso. Diseñado para ataques sorpresa bajo el agua.",
+    viewBox: '30 15 200 50',
     renderTop: (c) => (
       <g>
         {/* Hull (Cigar shape) */}
@@ -147,6 +150,7 @@ const SHIPS: { id: ShipType; name: string; size: number; desc: string; renderTop
     name: "Crucero Interceptor",
     size: 3,
     desc: "Equilibrio perfecto entre velocidad y potencia de fuego.",
+    viewBox: '15 15 175 50',
     renderTop: (c) => (
       <g>
         {/* Hull */}
@@ -187,6 +191,7 @@ const SHIPS: { id: ShipType; name: string; size: number; desc: string; renderTop
     name: "Destructor Veloz",
     size: 2,
     desc: "Unidad de reconocimiento rápida y maniobrable.",
+    viewBox: '10 30 140 25',
     renderTop: (c) => (
       <g>
         {/* Hull */}
@@ -224,14 +229,14 @@ const DraggableShip = ({ ship }: { ship: typeof SHIPS[0] }) => {
 
   return (
     <div ref={setNodeRef}  {...listeners} {...attributes}
-      className={`flex items-center gap-2 bg-slate-800 p-2 rounded cursor-grab hover:bg-slate-700 border border-slate-600 mb-2 shadow-lg touch-none`}>
+      className={`flex items-center gap-2 bg-slate-800 p-2 rounded cursor-grab hover:bg-slate-700 border border-slate-600 mb-2 shadow-lg touch-none ${isDragging ? 'opacity-50' : ''}`}>
       <div className={`w-8 h-8 flex items-center justify-center font-bold text-slate-300 bg-slate-900 rounded`}>
         {ship.size}
       </div>
       <div className="flex-1">
         <p className="text-xs text-slate-400 font-bold uppercase">{ship.name}</p>
         <div className="h-6 w-24 text-blue-400">
-          <svg viewBox="0 0 300 80" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
+          <svg viewBox={ship.viewBox || "0 0 300 80"} className="w-full h-full" preserveAspectRatio="xMidYMid meet">
             {ship.renderProfile(colors.ally)}
           </svg>
         </div>
@@ -433,18 +438,25 @@ export const ShipPlacement = ({ onShipsPlaced }: { onShipsPlaced: (ships: Ship[]
           <div
             className={`opacity-90 ${getSizeClasses(activeShipConfig.size, isHorizontal)}`}
           >
-            <div
-              style={!isHorizontal ? {
-                width: '100%',
-                height: '100%',
-                transform: 'rotate(90deg)',
-              } : { width: '100%', height: '100%' }}
-              className="w-full h-full"
-            >
-              
-              <svg viewBox={isHorizontal ? "0 0 300 80" : "0 0 80 300"} className="w-full h-full" preserveAspectRatio="xMidYMid meet">
-                {activeShipConfig.renderTop(colors.ally)}
-              </svg>
+            <div className="w-full h-full text-blue-400 relative">
+              {isHorizontal ? (
+                <svg viewBox={activeShipConfig.viewBox || "0 0 300 80"} className="w-full h-full" preserveAspectRatio="none">
+                  {activeShipConfig.renderTop(colors.ally)}
+                </svg>
+              ) : (
+                <div style={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  width: `${activeShipConfig.size * 100}%`, // Width = Size * (ContainerWidth). But ContainerWidth=1cell. So width=Size cells.
+                  height: `${100 / activeShipConfig.size}%`, // Height = 1cell.
+                  transform: 'translate(-50%, -50%) rotate(90deg)',
+                }}>
+                  <svg viewBox={activeShipConfig.viewBox || "0 0 300 80"} className="w-full h-full" preserveAspectRatio="none">
+                    {activeShipConfig.renderTop(colors.ally)}
+                  </svg>
+                </div>
+              )}
             </div>
           </div>
         ) : null}
@@ -482,25 +494,31 @@ const PlacementBoard = ({ board, placedShips }: { board: CellState[][], placedSh
           if (!shipConfig) return null;
 
           return (
-            <div key={ship.id} style={{ left, top, width, height }} className="absolute text-blue-400 flex items-center justify-center">
+            <div key={ship.id} style={{ left, top, width, height }} className="absolute text-blue-400">
               {isHorizontal ? (
                 <div className="w-full h-full">
-                  <svg viewBox="0 0 300 80" className="w-full h-full" preserveAspectRatio="none">
+                  <svg viewBox={shipConfig.viewBox || "0 0 300 80"} className="w-full h-full" preserveAspectRatio="none">
                     {shipConfig.renderTop(colors.ally)}
                   </svg>
                 </div>
               ) : (
-                // Vertical Logic using absolute positioning for tighter control
+                // Vertical Logic using absolute center positioning + rotation
                 <div style={{
                   position: 'absolute',
-                  top: 0,
-                  left: '100%', // Move origin to top-right corner of the strip
-                  width: `${ship.size * 100}%`, // Width matches height of container effectively
-                  height: `${100 / ship.size}%`, // Height matches width of container
-                  transform: 'rotate(90deg)',
-                  transformOrigin: 'top left',
+                  top: '50%',
+                  left: '50%',
+                  // The container is 1xSize. We want to place a Sizex1 horizontal ship in it and rotate.
+                  // Inner dimensions must match the Horizontal size relative to the Vertical container.
+                  // Width of Inner = Size * ContainerWidth (10%)? No.
+                  // Width of Inner = Size units. Container Width = 1 unit.
+                  // So Width = Size * 100% of container width? No. Size * 100% = Size units. Correct.
+                  width: `${ship.size * 100}%`,
+                  // Height of Inner = 1 unit. Container Height = Size units.
+                  // So Height = (1/Size) * 100% of container height.
+                  height: `${100 / ship.size}%`,
+                  transform: 'translate(-50%, -50%) rotate(90deg)',
                 }} >
-                  <svg viewBox="0 0 300 80" className="w-full h-full" preserveAspectRatio="none">
+                  <svg viewBox={shipConfig.viewBox || "0 0 300 80"} className="w-full h-full" preserveAspectRatio="none">
                     {shipConfig.renderTop(colors.ally)}
                   </svg>
                 </div>
