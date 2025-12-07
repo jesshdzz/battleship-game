@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { DndContext, type DragEndEvent, type DragStartEvent, DragOverlay, useDraggable, useDroppable } from '@dnd-kit/core';
 import { type Ship, type CellState, type Coordinate } from '../types';
 import { colors, SHIPS } from './ShipDefinitions';
+import { useSound } from '../hooks/useSound';
 
 // --- COMPONENTE DRAGGABLE (BARCO EN EL MUELLE) ---
 const DraggableShip = ({ ship }: { ship: typeof SHIPS[0] }) => {
+  const { play } = useSound(); // Hook for drag sound if needed, or stick to drag events
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `dock-${ship.id}`,
     data: { ship, fromDock: true },
@@ -12,6 +14,7 @@ const DraggableShip = ({ ship }: { ship: typeof SHIPS[0] }) => {
 
   return (
     <div ref={setNodeRef}  {...listeners} {...attributes}
+      onMouseDown={() => play('select')} // Sound on grab
       className={`flex items-center gap-2 bg-slate-800 p-2 rounded cursor-grab hover:bg-slate-700 border border-slate-600 mb-2 shadow-lg touch-none ${isDragging ? 'opacity-50' : ''}`}>
       <div className={`w-8 h-8 flex items-center justify-center font-bold text-slate-300 bg-slate-900 rounded`}>
         {ship.size}
