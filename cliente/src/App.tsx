@@ -3,6 +3,8 @@ import io from 'socket.io-client';
 import { EVENTS, type GameState, type Ship, type CellState } from './types';
 import { GameBoard } from './components/GameBoard';
 import { ShipPlacement } from './components/ShipPlacement';
+import { InstructionsModal } from './components/InstructionsModal';
+import { AboutUsModal } from './components/AboutUsModal';
 import { useSound } from './hooks/useSound';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
@@ -17,6 +19,9 @@ function App() {
   const [playerName, setPlayerName] = useState('');
   const [roomCode, setRoomCode] = useState('');
   const [myId, setMyId] = useState('');
+
+  const [showInstructions, setShowInstructions] = useState(false);
+  const [showAboutUs, setShowAboutUs] = useState(false);
 
   // Efecto para sockets
   useEffect(() => {
@@ -84,8 +89,20 @@ function App() {
     </button>
   );
 
-  const createRoom = () => { if (playerName) socket.emit(EVENTS.CREATE_ROOM, playerName); };
-  const joinRoom = () => { if (playerName && roomCode) socket.emit(EVENTS.JOIN_ROOM, { roomId: roomCode.toUpperCase(), playerName }); };
+  const createRoom = () => { 
+    if (playerName) {
+      socket.emit(EVENTS.CREATE_ROOM, playerName); 
+    } else {
+      alert('Por favor, ingresa un nombre de jugador.');
+    }
+  };
+  const joinRoom = () => { 
+    if (playerName && roomCode) {
+      socket.emit(EVENTS.JOIN_ROOM, { roomId: roomCode.toUpperCase(), playerName }); 
+    } else {
+      alert('Por favor, ingresa un nombre de jugador y un código de sala.');
+    }
+  };
 
   const handleShipsPlaced = (ships: Ship[]) => {
     if (!gameState) return;
@@ -115,16 +132,57 @@ function App() {
   // --- VISTA 1: LOGIN / LOBBY ---
   if (!gameState) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center font-mono text-white">
-        <div className="bg-slate-900 p-8 rounded-xl shadow-2xl border border-slate-800 w-96">
-          <SoundButton />
-          <h1 className="text-4xl text-center mb-8 font-bold text-blue-500">BATTLESHIP</h1>
-          <input className="w-full bg-slate-800 p-3 mb-4 border border-slate-700 rounded" placeholder="Tu Nombre" value={playerName} onChange={e => setPlayerName(e.target.value)} />
-          <button onClick={createRoom} className="w-full bg-blue-600 p-3 rounded font-bold mb-4 hover:bg-blue-500">CREAR SALA</button>
-          <div className="flex gap-2">
-            <input className="flex-1 bg-slate-800 p-3 border border-slate-700 rounded uppercase" placeholder="CÓDIGO" value={roomCode} onChange={e => setRoomCode(e.target.value)} />
-            <button onClick={joinRoom} className="bg-slate-700 px-4 rounded font-bold hover:bg-slate-600">UNIRSE</button>
+      <div className="min-h-screen bg-slate-950 font-mono text-white relative">
+        <InstructionsModal isOpen={showInstructions} onClose={() => setShowInstructions(false)} />
+        <AboutUsModal isOpen={showAboutUs} onClose={() => setShowAboutUs(false)} />
+
+        <div className="grid min-h-dvh grid-[auto_1fr_auto]">
+          {/* Header */}
+          <header className="flex flex-col items-center justify-center gap-4 px-6 py-6 max-w-6xl mx-auto w-full mt-4">
+            <div className="text-3xl font-bold text-blue-500 tracking-tighter cursor-default select-none animate-pulse">
+              Battleship Game
+            </div>
+            <button
+              onClick={() => setShowInstructions(true)}
+              className="bg-slate-900 text-slate-400 px-4 py-2 rounded-lg text-sm font-bold border border-slate-800 hover:bg-slate-800 hover:text-white transition-all hover:border-blue-500/50 shadow-lg"
+            >
+              📜 CÓMO JUGAR
+            </button>
+          </header>
+
+          <div className="flex items-center justify-center p-4">
+            <div className=' bg-slate-900 w-full max-w-md p-8 rounded-2xl shadow-2xl border border-slate-800 relative overflow-hidden group'>
+              {/* Decorative gradient */}
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-cyan-500 to-blue-500 opacity-50"></div>
+
+              <SoundButton />
+
+              <h2 className="text-xl text-center mb-8 font-bold text-slate-200 tracking-wide">INICIAR MISIÓN</h2>
+
+              <input className="w-full bg-slate-950 p-4 mb-4 border border-slate-800 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500/50 outline-none transition-all placeholder:text-slate-600 text-center font-bold" placeholder="TU ALIAS" value={playerName} onChange={e => setPlayerName(e.target.value)} />
+
+              <button onClick={createRoom} className="w-full bg-blue-600 p-4 rounded-lg font-black tracking-widest mb-8 hover:bg-blue-500 hover:shadow-[0_0_20px_rgba(37,99,235,0.3)] transition-all active:scale-[0.98]">
+                CREAR SALA
+              </button>
+
+              <div className="relative flex items-center gap-3 border-t border-slate-800 pt-6">
+                <input className="flex-1 bg-slate-950 p-3 border border-slate-800 rounded-lg uppercase text-center tracking-[0.2em] font-mono focus:ring-1 focus:ring-yellow-500/50 outline-none transition-all placeholder:text-slate-700" placeholder="CÓDIGO" value={roomCode} onChange={e => setRoomCode(e.target.value)} />
+                <button onClick={joinRoom} className="bg-slate-800 px-6 py-3 rounded-lg font-bold text-slate-300 hover:bg-slate-700 hover:text-white transition-colors border border-slate-700 hover:border-slate-500">
+                  UNIRSE
+                </button>
+              </div>
+            </div>
           </div>
+
+          <footer className='flex items-end justify-center pb-8 text-sm'>
+            <button
+              onClick={() => setShowAboutUs(true)}
+              className="text-slate-600 hover:text-blue-400 transition-colors flex items-center gap-2 px-4 py-2 rounded-full hover:bg-slate-900/50"
+            >
+              <span>ℹ️ Sobre Nosotros</span>
+            </button>
+          </footer>
+
         </div>
       </div>
     );
